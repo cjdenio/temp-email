@@ -139,7 +139,7 @@ func main() {
 	server := smtp.NewServer(backend)
 
 	server.Addr = ":3000"
-	server.Domain = "calebdenio.me"
+	server.Domain = "hack.af"
 
 	// Spin up an SMTP server in a goroutine
 	go func() {

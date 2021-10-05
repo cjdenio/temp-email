@@ -69,7 +69,7 @@ func Start() {
 						fmt.Println(err)
 					}
 
-					Client.PostMessage(ev.Channel, slack.MsgOptionText(fmt.Sprintf("wahoo! your temporary 24-hour email address is %s@calebdenio.me\n\ni'll post emails in this thread :arrow_down:", address), false), slack.MsgOptionTS(ev.TimeStamp))
+					Client.PostMessage(ev.Channel, slack.MsgOptionText(fmt.Sprintf("wahoo! your temporary 24-hour email address is %s@hack.af\n\ni'll post emails in this thread :arrow_down:", address), false), slack.MsgOptionTS(ev.TimeStamp))
 
 					email := db.Email{
 						ID:        address,
