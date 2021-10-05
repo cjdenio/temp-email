@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -62,13 +63,27 @@ func (s *Session) Data(r io.Reader) error {
 					if strings.Contains(part.Header.Get("Content-Type"), "text/plain") {
 						body, _ := io.ReadAll(part)
 
-						message = string(body)
+						if part.Header.Get("Content-Transfer-Encoding") == "base64" {
+							out := []byte{}
+							base64.StdEncoding.Decode(out, body)
+
+							message = string(out)
+						} else {
+							message = string(body)
+						}
 						break
 					}
 				}
 			} else {
 				body, _ := io.ReadAll(msg.Body)
-				message = string(body)
+				if msg.Header.Get("Content-Transfer-Encoding") == "base64" {
+					out := []byte{}
+					base64.StdEncoding.Decode(out, body)
+
+					message = string(out)
+				} else {
+					message = string(body)
+				}
 			}
 
 			subject := msg.Header.Get("Subject")
