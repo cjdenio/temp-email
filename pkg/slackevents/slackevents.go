@@ -76,6 +76,7 @@ func Start() {
 						CreatedAt: time.Now(),
 						ExpiresAt: time.Now().Add(24 * time.Hour),
 						Timestamp: ev.TimeStamp,
+						User:      ev.User,
 					}
 
 					db.DB.Create(&email)

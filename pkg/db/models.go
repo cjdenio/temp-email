@@ -7,5 +7,6 @@ type Email struct {
 	CreatedAt          time.Time
 	ExpiresAt          time.Time
 	Timestamp          string
+	User               string
 	ExpiredMessageSent bool `gorm:"default:false"`
 }
