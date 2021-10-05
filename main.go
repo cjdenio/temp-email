@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/cjdenio/temp-email/pkg/db"
+	"github.com/cjdenio/temp-email/pkg/schedule"
 	"github.com/cjdenio/temp-email/pkg/slackevents"
 	"github.com/emersion/go-smtp"
 	"github.com/slack-go/slack"
@@ -156,6 +157,9 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
+
+	// Start the scheduler
+	schedule.Start()
 
 	// Start listening for Slack events
 	slackevents.Start()
