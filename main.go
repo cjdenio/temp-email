@@ -51,7 +51,7 @@ func (s *Session) Data(r io.Reader) error {
 
 			addresses, err := msg.Header.AddressList("From")
 			if err == nil && len(addresses) >= 1 {
-				from = addresses[0].String()
+				from = addresses[0].Address
 			}
 
 			content_type, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
