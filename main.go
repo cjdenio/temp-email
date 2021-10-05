@@ -47,6 +47,12 @@ func (s *Session) Data(r io.Reader) error {
 		tx := db.DB.Where("id = ? AND expires_at > NOW()", split[0]).First(&email)
 		if tx.Error == nil {
 			message := ""
+			from := s.FromAddr
+
+			addresses, err := msg.Header.AddressList("From")
+			if err == nil && len(addresses) >= 1 {
+				from = addresses[0].String()
+			}
 
 			content_type, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
 			if err != nil {
@@ -111,7 +117,7 @@ func (s *Session) Data(r io.Reader) error {
 
 			slackevents.Client.PostMessage(
 				"C02GK2TVAVB",
-				slack.MsgOptionText(fmt.Sprintf("message from %s:\n%s\n\n```%s```", s.FromAddr, subject, message), false),
+				slack.MsgOptionText(fmt.Sprintf("message from %s:\n%s\n\n```%s```", from, subject, message), false),
 				slack.MsgOptionTS(email.Timestamp),
 			)
 		}
