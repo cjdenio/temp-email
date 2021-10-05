@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"mime"
 	"mime/multipart"
+	"mime/quotedprintable"
 	"net/mail"
 	"strings"
 	"time"
@@ -61,27 +62,42 @@ func (s *Session) Data(r io.Reader) error {
 					}
 
 					if strings.Contains(part.Header.Get("Content-Type"), "text/plain") {
-						body, _ := io.ReadAll(part)
-
 						if part.Header.Get("Content-Transfer-Encoding") == "base64" {
+							body, _ := io.ReadAll(part)
+
 							out := []byte{}
 							base64.StdEncoding.Decode(out, body)
 
 							message = string(out)
+						} else if part.Header.Get("Content-Transfer-Encoding") == "quoted-printable" {
+							r := quotedprintable.NewReader(part)
+							body, _ := io.ReadAll(r)
+
+							message = string(body)
 						} else {
+							body, _ := io.ReadAll(part)
+
 							message = string(body)
 						}
 						break
 					}
 				}
 			} else {
-				body, _ := io.ReadAll(msg.Body)
 				if msg.Header.Get("Content-Transfer-Encoding") == "base64" {
+					body, _ := io.ReadAll(msg.Body)
+
 					out := []byte{}
 					base64.StdEncoding.Decode(out, body)
 
 					message = string(out)
+				} else if msg.Header.Get("Content-Transfer-Encoding") == "quoted-printable" {
+					r := quotedprintable.NewReader(msg.Body)
+					body, _ := io.ReadAll(r)
+
+					message = string(body)
 				} else {
+					body, _ := io.ReadAll(msg.Body)
+
 					message = string(body)
 				}
 			}
