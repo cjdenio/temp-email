@@ -16,6 +16,7 @@ import (
 	"github.com/cjdenio/temp-email/pkg/db"
 	"github.com/cjdenio/temp-email/pkg/schedule"
 	"github.com/cjdenio/temp-email/pkg/slackevents"
+	"github.com/cjdenio/temp-email/pkg/util"
 	"github.com/emersion/go-smtp"
 	"github.com/slack-go/slack"
 )
@@ -39,7 +40,10 @@ func (s *Session) Rcpt(to string) error {
 	return nil
 }
 func (s *Session) Data(r io.Reader) error {
-	msg, _ := mail.ReadMessage(r)
+	msg, err := mail.ReadMessage(r)
+	if err != nil {
+		return nil
+	}
 
 	split := strings.Split(s.ToAddr, "@")
 
@@ -113,7 +117,7 @@ func (s *Session) Data(r io.Reader) error {
 			if subject == "" {
 				subject = "_no subject_"
 			} else {
-				subject = "subject: *" + subject + "*"
+				subject = "subject: *" + util.ParseMailHeader(subject) + "*"
 			}
 
 			slackevents.Client.PostMessage(
