@@ -24,7 +24,7 @@ func GenerateEmailAddress() string {
 	return generated
 }
 
-// Properly formats a mail header to properly handle cases involving RFC 1342 (https://www.rfc-editor.org/rfc/rfc1342)
+// Parses a mail header if it's formatted like RFC 1342 (https://www.rfc-editor.org/rfc/rfc1342)
 func ParseMailHeader(value string) string {
 	result := encodedHeaderRegexp.FindStringSubmatch(value)
 	if result == nil {
