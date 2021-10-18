@@ -50,82 +50,99 @@ func (s *Session) Data(r io.Reader) error {
 	if len(split) >= 1 {
 		var email db.Email
 		tx := db.DB.Where("id = ? AND expires_at > NOW()", split[0]).First(&email)
-		if tx.Error == nil {
-			message := ""
-			from := s.FromAddr
+		if tx.Error != nil {
+			return nil
+		}
 
-			addresses, err := msg.Header.AddressList("From")
-			if err == nil && len(addresses) >= 1 {
-				from = addresses[0].Address
-			}
+		message := ""
+		from := s.FromAddr
 
-			content_type, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
-			if err != nil {
-				return nil
-			}
+		addresses, err := msg.Header.AddressList("From")
+		if err == nil && len(addresses) >= 1 {
+			from = addresses[0].Address
+		}
 
-			if strings.Contains(content_type, "multipart") {
-				r := multipart.NewReader(msg.Body, params["boundary"])
-				for {
-					part, err := r.NextPart()
-					if err != nil {
-						return nil
-					}
+		content_type, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
+		if err != nil {
+			return nil
+		}
 
-					if strings.Contains(part.Header.Get("Content-Type"), "text/plain") {
-						if part.Header.Get("Content-Transfer-Encoding") == "base64" {
-							body, _ := io.ReadAll(part)
+		if strings.Contains(content_type, "multipart") {
+			r := multipart.NewReader(msg.Body, params["boundary"])
 
-							out := []byte{}
-							base64.StdEncoding.Decode(out, body)
+			parts := map[string]string{}
+			random_part := ""
 
-							message = string(out)
-						} else if part.Header.Get("Content-Transfer-Encoding") == "quoted-printable" {
-							r := quotedprintable.NewReader(part)
-							body, _ := io.ReadAll(r)
-
-							message = string(body)
-						} else {
-							body, _ := io.ReadAll(part)
-
-							message = string(body)
-						}
-						break
-					}
+			for {
+				part, err := r.NextPart()
+				if err != nil {
+					break
 				}
-			} else {
-				if msg.Header.Get("Content-Transfer-Encoding") == "base64" {
-					body, _ := io.ReadAll(msg.Body)
+
+				content_type, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
+
+				if part.Header.Get("Content-Transfer-Encoding") == "base64" {
+					body, _ := io.ReadAll(part)
 
 					out := []byte{}
 					base64.StdEncoding.Decode(out, body)
 
-					message = string(out)
-				} else if msg.Header.Get("Content-Transfer-Encoding") == "quoted-printable" {
-					r := quotedprintable.NewReader(msg.Body)
+					parts[content_type] = string(out)
+					random_part = string(out)
+				} else if part.Header.Get("Content-Transfer-Encoding") == "quoted-printable" {
+					r := quotedprintable.NewReader(part)
 					body, _ := io.ReadAll(r)
 
-					message = string(body)
+					parts[content_type] = string(body)
+					random_part = string(body)
 				} else {
-					body, _ := io.ReadAll(msg.Body)
+					body, _ := io.ReadAll(part)
 
-					message = string(body)
+					parts[content_type] = string(body)
+					random_part = string(body)
 				}
 			}
 
-			subject := msg.Header.Get("Subject")
-			if subject == "" {
-				subject = "_no subject_"
+			if part, ok := parts["text/plain"]; ok {
+				message = part
+			} else if part, ok := parts["text/html"]; ok {
+				message = part
 			} else {
-				subject = "subject: *" + util.ParseMailHeader(subject) + "*"
+				message = random_part
 			}
+		} else {
+			if msg.Header.Get("Content-Transfer-Encoding") == "base64" {
+				body, _ := io.ReadAll(msg.Body)
 
-			slackevents.Client.PostMessage(
-				"C02GK2TVAVB",
-				slack.MsgOptionText(fmt.Sprintf("message from %s:\n%s\n\n```%s```", from, subject, message), false),
-				slack.MsgOptionTS(email.Timestamp),
-			)
+				out := []byte{}
+				base64.StdEncoding.Decode(out, body)
+
+				message = string(out)
+			} else if msg.Header.Get("Content-Transfer-Encoding") == "quoted-printable" {
+				r := quotedprintable.NewReader(msg.Body)
+				body, _ := io.ReadAll(r)
+
+				message = string(body)
+			} else {
+				body, _ := io.ReadAll(msg.Body)
+
+				message = string(body)
+			}
 		}
+
+		subject := msg.Header.Get("Subject")
+		if subject == "" {
+			subject = "_no subject_"
+		} else {
+			subject = "subject: *" + util.ParseMailHeader(subject) + "*"
+		}
+
+		slackevents.Client.PostMessage(
+			"C02GK2TVAVB",
+			slack.MsgOptionText(fmt.Sprintf("message from %s:\n%s\n\n```%s```", from, subject, message), false),
+			slack.MsgOptionTS(email.Timestamp),
+		)
+
 	}
 
 	return nil
