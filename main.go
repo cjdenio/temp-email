@@ -64,11 +64,7 @@ func (s *Session) Data(r io.Reader) error {
 			from = addresses[0].Address
 		}
 
-		content_type, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
-		if err != nil {
-			log.Println(err)
-			return nil
-		}
+		content_type, params, _ := mime.ParseMediaType(msg.Header.Get("Content-Type"))
 
 		if strings.Contains(content_type, "multipart") {
 			log.Println("it was multipart")
