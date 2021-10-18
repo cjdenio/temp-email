@@ -42,6 +42,7 @@ func (s *Session) Rcpt(to string) error {
 func (s *Session) Data(r io.Reader) error {
 	msg, err := mail.ReadMessage(r)
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -137,6 +138,8 @@ func (s *Session) Data(r io.Reader) error {
 		} else {
 			subject = "subject: *" + util.ParseMailHeader(subject) + "*"
 		}
+
+		log.Printf("Message: %s\n", message)
 
 		_, _, err = slackevents.Client.PostMessage(
 			"C02GK2TVAVB",
