@@ -51,6 +51,7 @@ func (s *Session) Data(r io.Reader) error {
 		var email db.Email
 		tx := db.DB.Where("id = ? AND expires_at > NOW()", split[0]).First(&email)
 		if tx.Error != nil {
+			log.Println(tx.Error)
 			return nil
 		}
 
@@ -64,10 +65,13 @@ func (s *Session) Data(r io.Reader) error {
 
 		content_type, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
 		if err != nil {
+			log.Println(err)
 			return nil
 		}
 
 		if strings.Contains(content_type, "multipart") {
+			log.Println("it was multipart")
+
 			r := multipart.NewReader(msg.Body, params["boundary"])
 
 			parts := map[string]string{}
@@ -76,6 +80,7 @@ func (s *Session) Data(r io.Reader) error {
 			for {
 				part, err := r.NextPart()
 				if err != nil {
+					log.Println(err)
 					break
 				}
 
@@ -89,12 +94,6 @@ func (s *Session) Data(r io.Reader) error {
 
 					parts[content_type] = string(out)
 					random_part = string(out)
-				} else if part.Header.Get("Content-Transfer-Encoding") == "quoted-printable" {
-					r := quotedprintable.NewReader(part)
-					body, _ := io.ReadAll(r)
-
-					parts[content_type] = string(body)
-					random_part = string(body)
 				} else {
 					body, _ := io.ReadAll(part)
 
@@ -111,6 +110,8 @@ func (s *Session) Data(r io.Reader) error {
 				message = random_part
 			}
 		} else {
+			log.Println("it was not multipart")
+
 			if msg.Header.Get("Content-Transfer-Encoding") == "base64" {
 				body, _ := io.ReadAll(msg.Body)
 
@@ -137,12 +138,14 @@ func (s *Session) Data(r io.Reader) error {
 			subject = "subject: *" + util.ParseMailHeader(subject) + "*"
 		}
 
-		slackevents.Client.PostMessage(
+		_, _, err = slackevents.Client.PostMessage(
 			"C02GK2TVAVB",
 			slack.MsgOptionText(fmt.Sprintf("message from %s:\n%s\n\n```%s```", from, subject, message), false),
 			slack.MsgOptionTS(email.Timestamp),
 		)
-
+		if err != nil {
+			log.Println(err)
+		}
 	}
 
 	return nil
