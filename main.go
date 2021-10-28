@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net/mail"
+	"os"
 	"strings"
 	"time"
 
@@ -138,7 +139,7 @@ func (s *Session) Data(r io.Reader) error {
 		log.Printf("Message: %s\n", message)
 
 		_, _, err = slackevents.Client.PostMessage(
-			"C02GK2TVAVB",
+			os.Getenv("SLACK_CHANNEL"),
 			slack.MsgOptionText(fmt.Sprintf("message from %s:\n%s\n\n```%s```", from, subject, message), false),
 			slack.MsgOptionTS(email.Timestamp),
 		)
@@ -169,7 +170,7 @@ func main() {
 	server := smtp.NewServer(backend)
 
 	server.Addr = ":3000"
-	server.Domain = "hack.af"
+	server.Domain = os.Getenv("DOMAIN")
 
 	// Spin up an SMTP server in a goroutine
 	go func() {

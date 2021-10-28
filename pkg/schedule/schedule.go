@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/cjdenio/temp-email/pkg/db"
@@ -25,9 +26,9 @@ func Start() {
 		fmt.Println(len(emails))
 
 		for _, e := range emails {
-			slackevents.Client.PostMessage("C02GK2TVAVB", slack.MsgOptionText(":x: :clock1: it's been 24 hours, so this address will no longer receive mail.", false), slack.MsgOptionTS(e.Timestamp))
+			slackevents.Client.PostMessage(os.Getenv("SLACK_CHANNEL"), slack.MsgOptionText(":x: :clock1: it's been 24 hours, so this address will no longer receive mail.", false), slack.MsgOptionTS(e.Timestamp))
 			slackevents.Client.AddReaction("clock1", slack.ItemRef{
-				Channel:   "C02GK2TVAVB",
+				Channel:   os.Getenv("SLACK_CHANNEL"),
 				Timestamp: e.Timestamp,
 			})
 
