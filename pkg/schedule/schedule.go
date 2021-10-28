@@ -17,7 +17,7 @@ func Start() {
 	scheduler.Every(30).Minutes().Tag("expiry notification").Do(func() {
 		fmt.Println("Checking for expired addresses...")
 
-		var emails []db.Email
+		var emails []db.Address
 		tx := db.DB.Where("expires_at < NOW() AND NOT expired_message_sent").Find(&emails)
 		if tx.Error != nil {
 			fmt.Println(tx.Error)

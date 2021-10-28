@@ -10,37 +10,42 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DusanKasan/parsemail"
 	"github.com/cjdenio/temp-email/pkg/db"
 	"github.com/cjdenio/temp-email/pkg/util"
+	"github.com/gin-gonic/gin"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
+	"gorm.io/gorm"
 )
 
 var Client = slack.New(os.Getenv("SLACK_TOKEN"))
 
 func Start() {
-	http.HandleFunc("/slack/events", func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+	r := gin.Default()
+
+	r.POST("/slack/events", func(c *gin.Context) {
+		body, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			c.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		sv, err := slack.NewSecretsVerifier(r.Header, os.Getenv("SLACK_SIGNING_SECRET"))
+		sv, err := slack.NewSecretsVerifier(c.Request.Header, os.Getenv("SLACK_SIGNING_SECRET"))
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			c.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		if _, err := sv.Write(body); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			c.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if err := sv.Ensure(); err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
+			c.Writer.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		eventsAPIEvent, err := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionNoVerifyToken())
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			c.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
@@ -48,11 +53,11 @@ func Start() {
 			var r *slackevents.ChallengeResponse
 			err := json.Unmarshal([]byte(body), &r)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
+				c.Writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			w.Header().Set("Content-Type", "text")
-			w.Write([]byte(r.Challenge))
+			c.Writer.Header().Set("Content-Type", "text")
+			c.Writer.Write([]byte(r.Challenge))
 		}
 		if eventsAPIEvent.Type == slackevents.CallbackEvent {
 			innerEvent := eventsAPIEvent.InnerEvent
@@ -71,7 +76,7 @@ func Start() {
 
 					Client.PostMessage(ev.Channel, slack.MsgOptionText(fmt.Sprintf("wahoo! your temporary 24-hour email address is %s@%s\n\ni'll post emails in this thread :arrow_down:", address, os.Getenv("DOMAIN")), false), slack.MsgOptionTS(ev.TimeStamp))
 
-					email := db.Email{
+					email := db.Address{
 						ID:        address,
 						CreatedAt: time.Now(),
 						ExpiresAt: time.Now().Add(24 * time.Hour),
@@ -85,11 +90,29 @@ func Start() {
 		}
 	})
 
+	r.GET("/:email", func(c *gin.Context) {
+		var rawEmail db.Email
+		tx := db.DB.Where("id = ?", c.Param("email")).First(&rawEmail)
+		if tx.Error == gorm.ErrRecordNotFound {
+			c.String(404, "404 email not found :(")
+			return
+		} else if tx.Error != nil {
+			c.String(500, "aaaaaaaaaaaaaaaaaaaa something went wrong")
+			return
+		}
+
+		email, err := parsemail.Parse(strings.NewReader(rawEmail.Content))
+		if err != nil {
+			c.String(500, "aaaaaaaaaaaaaaaaaaaa something went wrong")
+			return
+		}
+
+		c.Header("Content-Type", "text/html")
+
+		c.String(200, email.HTMLBody)
+	})
+
 	log.Println("Starting up HTTP server...")
 
-	// Spin up the Slack app's HTTP server in the main goroutine
-	err := http.ListenAndServe(":3001", nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	r.Run(":3001")
 }

@@ -1,25 +1,27 @@
 package main
 
 import (
-	"encoding/base64"
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
-	"mime"
-	"mime/multipart"
-	"mime/quotedprintable"
-	"net/mail"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/DusanKasan/parsemail"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/cjdenio/temp-email/pkg/db"
 	"github.com/cjdenio/temp-email/pkg/schedule"
 	"github.com/cjdenio/temp-email/pkg/slackevents"
 	"github.com/cjdenio/temp-email/pkg/util"
 	"github.com/emersion/go-smtp"
 	"github.com/slack-go/slack"
+	"gorm.io/gorm"
+
+	md "github.com/JohannesKaufmann/html-to-markdown"
 )
 
 type Session struct {
@@ -41,111 +43,106 @@ func (s *Session) Rcpt(to string) error {
 	return nil
 }
 func (s *Session) Data(r io.Reader) error {
-	msg, err := mail.ReadMessage(r)
-	if err != nil {
-		log.Println(err)
+	split := strings.Split(s.ToAddr, "@")
+
+	if len(split) < 2 {
+		return errors.New("invalid address")
+	}
+
+	var address db.Address
+	tx := db.DB.Where("id = ? AND expires_at > NOW()", split[0]).First(&address)
+	if tx.Error == gorm.ErrRecordNotFound {
+		return errors.New("address not found")
+	} else if tx.Error != nil {
+		log.Println(tx.Error)
 		return nil
 	}
 
-	split := strings.Split(s.ToAddr, "@")
+	rawEmail, err := io.ReadAll(r)
+	if err != nil {
+		log.Println(err)
+	}
 
-	if len(split) >= 1 {
-		var email db.Email
-		tx := db.DB.Where("id = ? AND expires_at > NOW()", split[0]).First(&email)
-		if tx.Error != nil {
-			log.Println(tx.Error)
-			return nil
-		}
+	email, err := parsemail.Parse(bytes.NewReader(rawEmail))
+	if err != nil {
+		log.Println(err)
+	}
 
-		message := ""
-		from := s.FromAddr
+	savedEmail := &db.Email{
+		ID:        util.GenerateEmailAddress(),
+		AddressID: address.ID,
+		Content:   string(rawEmail),
+	}
 
-		addresses, err := msg.Header.AddressList("From")
-		if err == nil && len(addresses) >= 1 {
-			from = addresses[0].Address
-		}
+	db.DB.Create(&savedEmail)
 
-		content_type, params, _ := mime.ParseMediaType(msg.Header.Get("Content-Type"))
+	subject := email.Subject
+	if subject == "" {
+		subject = "_no subject_"
+	} else {
+		subject = fmt.Sprintf("subject: *%s*", email.Subject)
+	}
 
-		if strings.Contains(content_type, "multipart") {
-			log.Println("it was multipart")
+	body := ""
 
-			r := multipart.NewReader(msg.Body, params["boundary"])
+	if email.HTMLBody != "" {
+		converter := md.NewConverter("", true, &md.Options{
+			StrongDelimiter: "*",
+			EmDelimiter:     "_",
+		})
 
-			parts := map[string]string{}
-			random_part := ""
-
-			for {
-				part, err := r.NextPart()
-				if err != nil {
-					log.Println(err)
-					break
-				}
-
-				content_type, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
-
-				if part.Header.Get("Content-Transfer-Encoding") == "base64" {
-					body, _ := io.ReadAll(part)
-
-					out := []byte{}
-					base64.StdEncoding.Decode(out, body)
-
-					parts[content_type] = string(out)
-					random_part = string(out)
-				} else {
-					body, _ := io.ReadAll(part)
-
-					parts[content_type] = string(body)
-					random_part = string(body)
-				}
-			}
-
-			if part, ok := parts["text/plain"]; ok {
-				message = part
-			} else if part, ok := parts["text/html"]; ok {
-				message = part
-			} else {
-				message = random_part
-			}
-		} else {
-			log.Println("it was not multipart")
-
-			if msg.Header.Get("Content-Transfer-Encoding") == "base64" {
-				body, _ := io.ReadAll(msg.Body)
-
-				out := []byte{}
-				base64.StdEncoding.Decode(out, body)
-
-				message = string(out)
-			} else if msg.Header.Get("Content-Transfer-Encoding") == "quoted-printable" {
-				r := quotedprintable.NewReader(msg.Body)
-				body, _ := io.ReadAll(r)
-
-				message = string(body)
-			} else {
-				body, _ := io.ReadAll(msg.Body)
-
-				message = string(body)
-			}
-		}
-
-		subject := msg.Header.Get("Subject")
-		if subject == "" {
-			subject = "_no subject_"
-		} else {
-			subject = "subject: *" + util.ParseMailHeader(subject) + "*"
-		}
-
-		log.Printf("Message: %s\n", message)
-
-		_, _, err = slackevents.Client.PostMessage(
-			os.Getenv("SLACK_CHANNEL"),
-			slack.MsgOptionText(fmt.Sprintf("message from %s:\n%s\n\n```%s```", from, subject, message), false),
-			slack.MsgOptionTS(email.Timestamp),
+		converter.AddRules(
+			md.Rule{
+				Filter: []string{"a"},
+				Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+					return md.String(fmt.Sprintf("<%s|%s>", selec.AttrOr("href", content), content))
+				},
+			},
+			md.Rule{
+				Filter: []string{"h1", "h2", "h3", "h4", "h5", "h6"},
+				Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+					return md.String("\n\n*" + content + "*\n\n")
+				},
+			},
+			md.Rule{
+				Filter: []string{"img"},
+				Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+					return md.String("")
+				},
+			},
 		)
+
+		body, err = converter.ConvertString(email.HTMLBody)
 		if err != nil {
-			log.Println(err)
+			return errors.New("error parsing message")
 		}
+	} else {
+		body = email.TextBody
+	}
+
+	_, _, err = slackevents.Client.PostMessage(
+		os.Getenv("SLACK_CHANNEL"),
+		slack.MsgOptionDisableLinkUnfurl(),
+		slack.MsgOptionDisableMediaUnfurl(),
+		slack.MsgOptionTS(address.Timestamp),
+		slack.MsgOptionBlocks(
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("message from %s\n%s", email.From[0].Address, subject), false, false),
+				nil,
+				nil,
+			),
+			slack.NewDividerBlock(),
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject("mrkdwn", body, false, false),
+				nil,
+				nil,
+			),
+			slack.NewDividerBlock(),
+			slack.NewContextBlock("", slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("Not rendering properly? Click <%s/%s|here> to view this email in your browser.", os.Getenv("APP_DOMAIN"), savedEmail.ID), false, false)),
+		),
+	)
+	if err != nil {
+		log.Println(err)
 	}
 
 	return nil

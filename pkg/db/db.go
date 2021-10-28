@@ -18,5 +18,5 @@ func Connect() {
 
 	DB = _db
 
-	DB.AutoMigrate(&Email{})
+	DB.AutoMigrate(&Address{}, &Email{})
 }
