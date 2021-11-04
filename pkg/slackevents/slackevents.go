@@ -107,9 +107,20 @@ func Start() {
 			return
 		}
 
-		c.Header("Content-Type", "text/html")
+		if email.HTMLBody != "" {
+			c.Header("Content-Type", "text/html")
 
-		c.String(200, email.HTMLBody)
+			c.String(200, email.HTMLBody)
+		} else if email.TextBody != "" {
+
+			c.Header("Content-Type", "text/plain")
+
+			c.String(200, email.TextBody)
+		} else {
+			c.Header("Content-Type", "text/plain")
+
+			c.String(200, "Something went wrong: this message has no content :(")
+		}
 	})
 
 	log.Println("Starting up HTTP server...")
