@@ -3,7 +3,11 @@ module github.com/cjdenio/temp-email
 go 1.17
 
 require (
+	github.com/DusanKasan/parsemail v1.2.0
+	github.com/JohannesKaufmann/html-to-markdown v1.3.0
+	github.com/PuerkitoBio/goquery v1.5.1
 	github.com/emersion/go-smtp v0.15.0
+	github.com/gin-gonic/gin v1.7.4
 	github.com/go-co-op/gocron v1.9.0
 	github.com/slack-go/slack v0.9.5
 	gorm.io/driver/postgres v1.1.2
@@ -11,13 +15,9 @@ require (
 )
 
 require (
-	github.com/DusanKasan/parsemail v1.2.0 // indirect
-	github.com/JohannesKaufmann/html-to-markdown v1.3.0 // indirect
-	github.com/PuerkitoBio/goquery v1.5.1 // indirect
 	github.com/andybalholm/cascadia v1.1.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.7.4 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.9.0 // indirect
