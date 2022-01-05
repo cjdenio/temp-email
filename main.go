@@ -127,13 +127,13 @@ func (s *Session) Data(r io.Reader) error {
 		slack.MsgOptionTS(address.Timestamp),
 		slack.MsgOptionBlocks(
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("message from %s\n%s", email.From[0].Address, subject), false, false),
+				slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("message from %s\n%s", email.From[0].Address, util.SanitizeInput(subject)), false, false),
 				nil,
 				nil,
 			),
 			slack.NewDividerBlock(),
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject("mrkdwn", body, false, false),
+				slack.NewTextBlockObject("mrkdwn", util.SanitizeInput(body), false, false),
 				nil,
 				nil,
 			),

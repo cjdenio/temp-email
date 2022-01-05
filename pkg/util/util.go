@@ -2,6 +2,7 @@ package util
 
 import (
 	"math/rand"
+	"strings"
 )
 
 func GenerateEmailAddress() string {
@@ -14,4 +15,18 @@ func GenerateEmailAddress() string {
 	}
 
 	return generated
+}
+
+// Removes @everyone, @channel, and @here
+func SanitizeInput(input string) string {
+	input = strings.ReplaceAll(input, "@channel", "[redacted]")
+	input = strings.ReplaceAll(input, "<!channel>", "[redacted]")
+
+	input = strings.ReplaceAll(input, "@everyone", "[redacted]")
+	input = strings.ReplaceAll(input, "<!everyone>", "[redacted]")
+
+	input = strings.ReplaceAll(input, "@here", "[redacted]")
+	input = strings.ReplaceAll(input, "<!here>", "[redacted]")
+
+	return input
 }
