@@ -63,7 +63,7 @@ func Start() {
 			innerEvent := eventsAPIEvent.InnerEvent
 			switch ev := innerEvent.Data.(type) {
 			case *slackevents.MessageEvent:
-				if ev.SubType == "" && ev.Channel == os.Getenv("SLACK_CHANNEL") && ev.ThreadTimeStamp == "" && strings.Contains(ev.Text, "gib email") {
+				if ev.SubType == "" && ev.Channel == os.Getenv("SLACK_CHANNEL") && ev.ThreadTimeStamp == "" && strings.Contains(strings.ToLower(ev.Text), "gib email") {
 					address := util.GenerateEmailAddress()
 
 					err = Client.AddReaction("thumb", slack.ItemRef{
