@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -87,6 +88,61 @@ func Start() {
 					db.DB.Create(&email)
 				}
 			}
+		}
+	})
+
+	r.POST("/slack/interactivity", func(c *gin.Context) {
+		body, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		sv, err := slack.NewSecretsVerifier(c.Request.Header, os.Getenv("SLACK_SIGNING_SECRET"))
+		if err != nil {
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if _, err := sv.Write(body); err != nil {
+			c.Writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if err := sv.Ensure(); err != nil {
+			c.Writer.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		form, err := url.ParseQuery(string(body))
+		if err != nil {
+			fmt.Printf(err.Error())
+		}
+
+		var payload slack.InteractionCallback
+
+		err = json.Unmarshal([]byte(form.Get("payload")), &payload)
+		if err != nil {
+			fmt.Printf("Could not parse action response JSON: %v", err)
+		}
+
+		if payload.ActionCallback.BlockActions[0].ActionID == "reactivate" {
+			id := payload.ActionCallback.BlockActions[0].Value
+			var address db.Address
+			db.DB.Where("id = ?", id).First(&address)
+
+			if payload.User.ID != address.User {
+				Client.PostEphemeral(os.Getenv("SLACK_CHANNEL"), payload.User.ID, slack.MsgOptionTS(address.Timestamp), slack.MsgOptionText("whatcha tryin' to pull here :face_with_raised_eyebrow:", false))
+				return
+			}
+
+			address.ExpiresAt = time.Now().Add(24 * time.Hour)
+			address.ExpiredMessageSent = false
+
+			db.DB.Save(&address)
+
+			Client.PostMessage(os.Getenv("SLACK_CHANNEL"), slack.MsgOptionTS(address.Timestamp), slack.MsgOptionText("This address will be available for another 24 hours!", false))
+			Client.RemoveReaction("clock1", slack.ItemRef{
+				Channel:   os.Getenv("SLACK_CHANNEL"),
+				Timestamp: address.Timestamp,
+			})
 		}
 	})
 

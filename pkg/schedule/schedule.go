@@ -26,7 +26,17 @@ func Start() {
 		fmt.Println(len(emails))
 
 		for _, e := range emails {
-			slackevents.Client.PostMessage(os.Getenv("SLACK_CHANNEL"), slack.MsgOptionText(":x: :clock1: it's been 24 hours, so this address will no longer receive mail.", false), slack.MsgOptionTS(e.Timestamp))
+			_, _, err := slackevents.Client.PostMessage(
+				os.Getenv("SLACK_CHANNEL"),
+				slack.MsgOptionText(":x: :clock1: it's been 24 hours, so this address will no longer receive mail.", false),
+				slack.MsgOptionTS(e.Timestamp),
+				slack.MsgOptionBlocks(
+					slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType, ":x: :clock1: it's been 24 hours, so this address will no longer receive mail.", false, false), nil, nil),
+					slack.NewActionBlock("reactivate", slack.NewButtonBlockElement("reactivate", e.ID, slack.NewTextBlockObject(slack.PlainTextType, "Get another 24 hours", false, false))),
+				))
+			if err != nil {
+				fmt.Println(err.Error())
+			}
 			slackevents.Client.AddReaction("clock1", slack.ItemRef{
 				Channel:   os.Getenv("SLACK_CHANNEL"),
 				Timestamp: e.Timestamp,
