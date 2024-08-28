@@ -75,7 +75,7 @@ func Start() {
 						fmt.Println(err)
 					}
 
-					Client.PostMessage(ev.Channel, slack.MsgOptionText(fmt.Sprintf("wahoo! your temporary 24-hour email address is %s@%s\n\ni'll post emails in this thread :arrow_down:\n\nto stop receiving emails, delete your 'gib email' message.", address, os.Getenv("DOMAIN")), false), slack.MsgOptionTS(ev.TimeStamp))
+					Client.PostMessage(ev.Channel, slack.MsgOptionText(fmt.Sprintf("wahoo! your temporary 24-hour email address is %s@%s\n\ni'll post emails in this thread :arrow_down:", address, os.Getenv("DOMAIN")), false), slack.MsgOptionTS(ev.TimeStamp))
 
 					email := db.Address{
 						ID:        address,
@@ -86,19 +86,6 @@ func Start() {
 					}
 
 					db.DB.Create(&email)
-				} else if ev.SubType == "message_deleted" && ev.Channel == os.Getenv("SLACK_CHANNEL") {
-					var address *db.Address
-					db.DB.Where("timestamp = ?", ev.DeletedTimeStamp).First(&address)
-
-					if address != nil {
-						address.ExpiresAt = time.Now()
-						db.DB.Save(address)
-
-						_, _, err = Client.PostMessage(os.Getenv("SLACK_CHANNEL"), slack.MsgOptionTS(ev.DeletedTimeStamp), slack.MsgOptionText("since you deleted your message, this address has been deactivated.", false))
-						if err != nil {
-							fmt.Println(err)
-						}
-					}
 				}
 			}
 		}
