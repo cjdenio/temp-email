@@ -22,6 +22,7 @@ import (
 	"gorm.io/gorm"
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
+	"github.com/joho/godotenv"
 )
 
 type Session struct {
@@ -159,6 +160,7 @@ func (b Backend) AnonymousLogin(state *smtp.ConnectionState) (smtp.Session, erro
 }
 
 func main() {
+	godotenv.Load()
 	rand.Seed(time.Now().UnixNano())
 
 	db.Connect()

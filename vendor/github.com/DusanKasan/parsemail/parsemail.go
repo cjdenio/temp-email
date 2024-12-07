@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
-	"mime/quotedprintable"
 	"net/mail"
 	"strings"
 	"time"
@@ -46,24 +45,10 @@ func Parse(r io.Reader) (email Email, err error) {
 	case contentTypeMultipartRelated:
 		email.TextBody, email.HTMLBody, email.EmbeddedFiles, err = parseMultipartRelated(msg.Body, params["boundary"])
 	case contentTypeTextPlain:
-		reader, e := decodeContent(msg.Body, msg.Header.Get("Content-Transfer-Encoding"))
-		// aaa ⬇️
-		err = e
-		if err != nil {
-			return
-		}
-
-		message, _ := ioutil.ReadAll(reader)
+		message, _ := ioutil.ReadAll(msg.Body)
 		email.TextBody = strings.TrimSuffix(string(message[:]), "\n")
 	case contentTypeTextHtml:
-		reader, e := decodeContent(msg.Body, msg.Header.Get("Content-Transfer-Encoding"))
-		// aaa ⬇️
-		err = e
-		if err != nil {
-			return
-		}
-
-		message, _ := ioutil.ReadAll(reader)
+		message, _ := ioutil.ReadAll(msg.Body)
 		email.HTMLBody = strings.TrimSuffix(string(message[:]), "\n")
 	default:
 		email.Content, err = decodeContent(msg.Body, msg.Header.Get("Content-Transfer-Encoding"))
@@ -376,10 +361,6 @@ func decodeContent(content io.Reader, encoding string) (io.Reader, error) {
 		}
 
 		return bytes.NewReader(dd), nil
-	case "quoted-printable":
-		r := quotedprintable.NewReader(content)
-
-		return r, nil
 	case "":
 		return content, nil
 	default:
@@ -502,7 +483,7 @@ type Email struct {
 	ResentMessageID string
 
 	ContentType string
-	Content     io.Reader
+	Content io.Reader
 
 	HTMLBody string
 	TextBody string

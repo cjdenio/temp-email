@@ -9,6 +9,7 @@ require (
 	github.com/emersion/go-smtp v0.15.0
 	github.com/gin-gonic/gin v1.7.4
 	github.com/go-co-op/gocron v1.9.0
+	github.com/joho/godotenv v1.5.1
 	github.com/slack-go/slack v0.9.5
 	gorm.io/driver/postgres v1.1.2
 	gorm.io/gorm v1.21.15

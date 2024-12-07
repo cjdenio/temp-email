@@ -20,9 +20,15 @@ import (
 	"gorm.io/gorm"
 )
 
-var Client = slack.New(os.Getenv("SLACK_TOKEN"))
+var Client *slack.Client
+
+func topLevelMessage(ev *slackevents.MessageEvent) bool {
+	return ev.Channel == os.Getenv("SLACK_CHANNEL") && ev.ThreadTimeStamp == ""
+}
 
 func Start() {
+	Client = slack.New(os.Getenv("SLACK_TOKEN"))
+
 	r := gin.Default()
 
 	r.POST("/slack/events", func(c *gin.Context) {
@@ -64,7 +70,7 @@ func Start() {
 			innerEvent := eventsAPIEvent.InnerEvent
 			switch ev := innerEvent.Data.(type) {
 			case *slackevents.MessageEvent:
-				if ev.SubType == "" && ev.Channel == os.Getenv("SLACK_CHANNEL") && ev.ThreadTimeStamp == "" && strings.Contains(strings.ToLower(ev.Text), "gib email") {
+				if ev.SubType == "" && topLevelMessage(ev) && strings.Contains(strings.ToLower(ev.Text), "gib email") {
 					address := util.GenerateEmailAddress()
 
 					err = Client.AddReaction("thumb", slack.ItemRef{
@@ -75,7 +81,15 @@ func Start() {
 						fmt.Println(err)
 					}
 
-					Client.PostMessage(ev.Channel, slack.MsgOptionText(fmt.Sprintf("wahoo! your temporary 24-hour email address is %s@%s\n\ni'll post emails in this thread :arrow_down:", address, os.Getenv("DOMAIN")), false), slack.MsgOptionTS(ev.TimeStamp))
+					Client.PostMessage(
+						ev.Channel,
+						slack.MsgOptionText(fmt.Sprintf(`wahoo! your temporary 24-hour email address is %s@%s
+						
+to stop receiving emails, delete your 'gib email' message.
+
+i'll post emails in this thread :arrow_down:`, address, os.Getenv("DOMAIN")), false),
+						slack.MsgOptionTS(ev.TimeStamp),
+					)
 
 					email := db.Address{
 						ID:        address,
@@ -86,6 +100,25 @@ func Start() {
 					}
 
 					db.DB.Create(&email)
+				} else if ev.SubType == "" && topLevelMessage(ev) && strings.HasPrefix(strings.ToLower(ev.Text), "gib ") {
+					Client.PostMessage(ev.Channel, slack.MsgOptionText(fmt.Sprintf("unfortunately i am unable to _\"gib %s\"_. maybe try _\"gib email\"_?", strings.TrimPrefix(strings.ToLower(ev.Text), "gib ")), false), slack.MsgOptionTS(ev.TimeStamp))
+				} else if (ev.SubType == "message_deleted" || (ev.SubType == "message_changed" && ev.Message.SubType == "tombstone")) && topLevelMessage(ev) {
+					var address db.Address
+					tx := db.DB.Where("timestamp = ? AND expires_at > NOW()", ev.PreviousMessage.TimeStamp).First(&address)
+
+					if tx.Error == nil {
+						address.ExpiresAt = time.Now()
+						address.ExpiredMessageSent = true
+						tx = db.DB.Save(&address)
+						if tx.Error == nil {
+							Client.PostMessage(
+								os.Getenv("SLACK_CHANNEL"),
+								slack.MsgOptionText(":x: since you deleted your message, this address has been deactivated.", false),
+								slack.MsgOptionTS(address.Timestamp),
+							)
+						}
+
+					}
 				}
 			}
 		}
@@ -113,7 +146,7 @@ func Start() {
 
 		form, err := url.ParseQuery(string(body))
 		if err != nil {
-			fmt.Printf(err.Error())
+			fmt.Println(err)
 		}
 
 		var payload slack.InteractionCallback
