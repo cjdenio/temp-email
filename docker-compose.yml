@@ -1,0 +1,26 @@
+services:
+  main:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3001"
+      - "25:3000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/temp_email
+      GIN_MODE: release
+    depends_on:
+      - db
+    restart: unless-stopped
+  db:
+    image: postgres:alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: temp_email
+    volumes:
+      - "db_volume:/var/lib/postgresql/data"
+    restart: unless-stopped
+volumes:
+  db_volume:
