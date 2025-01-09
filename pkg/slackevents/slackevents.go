@@ -159,7 +159,10 @@ i'll post emails in this thread :arrow_down:`, address, os.Getenv("DOMAIN")), fa
 		if payload.ActionCallback.BlockActions[0].ActionID == "reactivate" {
 			id := payload.ActionCallback.BlockActions[0].Value
 			var address db.Address
-			db.DB.Where("id = ?", id).First(&address)
+			tx := db.DB.Where("id = ? AND expires_at < NOW()", id).First(&address)
+			if tx.Error != nil {
+				return
+			}
 
 			if payload.User.ID != address.User {
 				Client.PostEphemeral(os.Getenv("SLACK_CHANNEL"), payload.User.ID, slack.MsgOptionTS(address.Timestamp), slack.MsgOptionText("whatcha tryin' to pull here :face_with_raised_eyebrow:", false))
