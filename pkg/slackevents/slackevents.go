@@ -200,12 +200,12 @@ i'll post emails in this thread :arrow_down:`, address, os.Getenv("DOMAIN")), fa
 		}
 
 		if email.HTMLBody != "" {
-			c.Header("Content-Type", "text/html")
+			c.Header("Content-Type", "text/html; charset=utf-8")
 
 			c.String(200, email.HTMLBody)
 		} else if email.TextBody != "" {
 
-			c.Header("Content-Type", "text/plain")
+			c.Header("Content-Type", "text/plain; charset=utf-8")
 
 			c.String(200, email.TextBody)
 		} else {
